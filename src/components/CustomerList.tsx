@@ -16,6 +16,8 @@ interface CustomerListProps {
   onDeleteCustomer: (id: string) => void;
   refreshing?: boolean;
   onRefresh?: () => void;
+  showFetchButton?: boolean;
+  onFetchCustomers?: () => void;
 }
 
 interface CustomerItemProps {
@@ -44,7 +46,7 @@ const buildSections = (customers: ZellerCustomer[]): CustomerSection[] => {
   }
 
   const sorted = [...customers].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, {sensitivity: 'base'})
+    a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}),
   );
 
   const mapped: Record<string, ZellerCustomer[]> = {};
@@ -77,7 +79,7 @@ const CustomerItem: React.FC<CustomerItemProps> = ({customer, onEdit, onDelete})
       [
         {text: 'Cancel', style: 'cancel'},
         {text: 'Delete', style: 'destructive', onPress: onDelete},
-      ]
+      ],
     );
   };
 
@@ -87,8 +89,7 @@ const CustomerItem: React.FC<CustomerItemProps> = ({customer, onEdit, onDelete})
       activeOpacity={0.9}
       onPress={onEdit}
       onLongPress={handleDelete}
-      delayLongPress={250}
-    >
+      delayLongPress={250}>
       <View style={styles.avatar}>
         <Text style={styles.avatarText}>{getInitial(customer.name)}</Text>
       </View>
@@ -97,8 +98,7 @@ const CustomerItem: React.FC<CustomerItemProps> = ({customer, onEdit, onDelete})
         style={[
           styles.roleText,
           customer.role === 'Admin' ? styles.adminRole : styles.managerRole,
-        ]}
-      >
+        ]}>
         {customer.role}
       </Text>
     </TouchableOpacity>
@@ -111,6 +111,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   onDeleteCustomer,
   refreshing = false,
   onRefresh,
+  showFetchButton,
+  onFetchCustomers,
 }) => {
   const sections = useMemo(() => buildSections(customers), [customers]);
 
@@ -126,6 +128,14 @@ export const CustomerList: React.FC<CustomerListProps> = ({
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>No customers found</Text>
+        {showFetchButton && onFetchCustomers && (
+          <TouchableOpacity
+            style={styles.refetchButton}
+            onPress={onFetchCustomers}
+            accessibilityLabel="Fetch customers from server">
+            <Text style={styles.refetchButtonText}>Fetch customers from server</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   }
@@ -230,4 +240,21 @@ const styles = StyleSheet.create({
     color: '#666666',
     textAlign: 'center',
   },
+  refetchButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#1B6FF9',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  refetchButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1B6FF9',
+  },
 });
+
+

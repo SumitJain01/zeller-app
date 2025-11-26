@@ -39,7 +39,7 @@ export const AddEditCustomerScreen: React.FC<AddEditCustomerScreenProps> = ({
   customer,
   onClose,
 }) => {
-  const {addCustomer, updateCustomer} = useCustomerStore();
+  const {addCustomer, updateCustomer, deleteCustomer} = useCustomerStore();
   const initialNameParts = splitName(customer?.name || '');
   
   const [formData, setFormData] = useState<FormData>({
@@ -136,6 +136,35 @@ export const AddEditCustomerScreen: React.FC<AddEditCustomerScreenProps> = ({
   const getErrorForField = (field: string): string | undefined => {
     const error = errors.find(e => e.field === field);
     return error?.message;
+  };
+
+  const handleDeleteCustomer = () => {
+    if (!customer) {
+      return;
+    }
+
+    Alert.alert(
+      'Delete Customer',
+      `Are you sure you want to delete ${customer.name}?`,
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCustomer(customer.id);
+              onClose();
+            } catch (error) {
+              Alert.alert(
+                'Error',
+                'Failed to delete customer. Please try again.',
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   const primaryButtonLabel = isSubmitting
@@ -239,6 +268,16 @@ export const AddEditCustomerScreen: React.FC<AddEditCustomerScreenProps> = ({
         >
           <Text style={styles.primaryButtonText}>{primaryButtonLabel}</Text>
         </TouchableOpacity>
+
+        {isEditMode && (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDeleteCustomer}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.deleteButtonText}>Delete User</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -353,5 +392,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  deleteButton: {
+    marginTop: 16,
+    marginHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#F97373',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
   },
 });

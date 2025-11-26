@@ -1,7 +1,8 @@
 import SQLite from 'react-native-sqlite-storage';
 import {ZellerCustomer} from '../types';
 
-SQLite.DEBUG(true);
+// Disable verbose SQLite debug logging in production
+SQLite.DEBUG(false);
 SQLite.enablePromise(true);
 
 export class DatabaseService {
@@ -39,8 +40,7 @@ export class DatabaseService {
       case 'manager_user':
         return 'Manager';
       default:
-        // Default fallback - log the unknown role
-        console.warn(`Unknown role value: "${role}", defaulting to Manager`);
+        // Default fallback when role is unrecognised
         return 'Manager';
     }
   }
@@ -62,7 +62,6 @@ export class DatabaseService {
       });
 
       await this.createTables();
-      console.log('Database initialized successfully');
     } catch (error) {
       console.error('Database initialization failed:', error);
       throw error;
@@ -99,18 +98,13 @@ export class DatabaseService {
     // Normalize the role before inserting
     const normalizedRole = this.normalizeRole(customer.role);
     
-    if (customer.role !== normalizedRole) {
-      console.log(`Normalized role "${customer.role}" to "${normalizedRole}" for customer ${customer.name}`);
-    }
-
     try {
-      const result = await this.database.executeSql(insertQuery, [
+      await this.database.executeSql(insertQuery, [
         customer.id,
         customer.name,
         customer.email,
         normalizedRole,
       ]);
-      console.log(`Successfully inserted customer: ${customer.name} with role: ${normalizedRole}`);
     } catch (error) {
       console.error(`Error inserting customer ${customer.name} with role ${normalizedRole}:`, error);
       throw error;
@@ -123,28 +117,19 @@ export class DatabaseService {
     }
 
     if (customers.length === 0) {
-      console.log('No customers to insert');
       return;
     }
-
-    console.log(`Starting insertCustomers for ${customers.length} customers`);
 
     // Alternative approach: Insert one by one to avoid transaction issues
     try {
       for (let i = 0; i < customers.length; i++) {
         const customer = customers[i];
-        console.log(`Inserting customer ${i + 1}/${customers.length}: ${customer.name}`);
         await this.insertCustomer(customer);
       }
-      console.log(`Successfully inserted all ${customers.length} customers`);
     } catch (error) {
       console.error('Error in insertCustomers:', error);
       throw error;
     }
-
-    // Verify the insertion worked
-    const finalCount = await this.getCustomerCount();
-    console.log(`Final customer count after insertCustomers: ${finalCount}`);
   }
 
   public async getAllCustomers(): Promise<ZellerCustomer[]> {
@@ -156,7 +141,7 @@ export class DatabaseService {
     const result = await this.database.executeSql(selectQuery);
     const customers: ZellerCustomer[] = [];
     const rows = result[0].rows;
-    
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows.item(i);
       // Normalize role when reading to ensure consistency
@@ -165,12 +150,6 @@ export class DatabaseService {
         role: this.normalizeRole(row.role),
       };
       customers.push(normalizedCustomer);
-    }
-    
-    console.log(`[getAllCustomers] Retrieved ${customers.length} customers from database`);
-    if (customers.length > 0) {
-      const uniqueRoles = [...new Set(customers.map(c => c.role))];
-      console.log(`[getAllCustomers] Unique roles:`, uniqueRoles);
     }
     
     return customers;
@@ -263,10 +242,6 @@ export class DatabaseService {
     // Normalize the role before updating
     const normalizedRole = this.normalizeRole(customer.role);
     
-    if (customer.role !== normalizedRole) {
-      console.log(`Normalized role "${customer.role}" to "${normalizedRole}" for customer ${customer.name}`);
-    }
-
     await this.database.executeSql(updateQuery, [
       customer.name,
       customer.email,
@@ -291,7 +266,6 @@ export class DatabaseService {
 
     const deleteQuery = 'DELETE FROM customers;';
     await this.database.executeSql(deleteQuery);
-    console.log('All customers cleared from database');
   }
 
   public async getCustomerCount(): Promise<number> {
@@ -302,14 +276,12 @@ export class DatabaseService {
     const countQuery = 'SELECT COUNT(*) as count FROM customers;';
     const result = await this.database.executeSql(countQuery);
     const count = result[0].rows.item(0).count;
-    console.log(`Database contains ${count} customers`);
     return count;
   }
 
   public async testDatabaseConnection(): Promise<boolean> {
     try {
       if (!this.database) {
-        console.error('Database not initialized');
         return false;
       }
 
@@ -318,11 +290,9 @@ export class DatabaseService {
       const result = await this.database.executeSql(testQuery);
       
       if (result[0].rows.length === 0) {
-        console.error('Customers table does not exist');
         return false;
       }
 
-      console.log('Database connection test passed');
       return true;
     } catch (error) {
       console.error('Database connection test failed:', error);
@@ -335,27 +305,17 @@ export class DatabaseService {
       id: 'test-' + Date.now(),
       name: 'Test Customer',
       email: 'test@example.com',
-      role: 'Admin'
+      role: 'Admin',
     };
 
-    console.log('Testing single customer insert...');
     await this.insertCustomer(testCustomer);
-    
-    const count = await this.getCustomerCount();
-    console.log(`After test insert, customer count: ${count}`);
-    
-    // Clean up test data
     await this.deleteCustomer(testCustomer.id);
-    const finalCount = await this.getCustomerCount();
-    console.log(`After cleanup, customer count: ${finalCount}`);
   }
 
   public async recreateTableWithoutConstraint(): Promise<void> {
     if (!this.database) {
       throw new Error('Database not initialized');
     }
-
-    console.log('Recreating customers table without role constraint...');
 
     // Drop existing table
     await this.database.executeSql('DROP TABLE IF EXISTS customers;');
@@ -371,7 +331,6 @@ export class DatabaseService {
     `;
 
     await this.database.executeSql(createTableQuery);
-    console.log('Table recreated without role constraint');
   }
 
   public async closeDatabase(): Promise<void> {

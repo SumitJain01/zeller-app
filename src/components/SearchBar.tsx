@@ -63,6 +63,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     shadowOffset: {width: 0, height: 3},
     elevation: 2,
+    marginTop: 12
   },
   searchIcon: {
     marginRight: 8,

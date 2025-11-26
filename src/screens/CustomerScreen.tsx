@@ -108,6 +108,8 @@ export const CustomerScreen: React.FC<CustomerScreenProps> = ({
           onDeleteCustomer={handleDeleteCustomer}
           refreshing={refreshing}
           onRefresh={refreshCustomers}
+          showFetchButton={!loading && customers.length === 0}
+          onFetchCustomers={loadCustomers}
         />
       </View>
     );
@@ -170,12 +172,6 @@ export const CustomerScreen: React.FC<CustomerScreenProps> = ({
       >
         <Feather name="plus" size={28} color="#FFFFFF" />
       </TouchableOpacity>
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <Text style={styles.loadingText}>Loading customers...</Text>
-        </View>
-      )}
     </SafeAreaView>
   );
 };
@@ -239,20 +235,5 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: {width: 0, height: 4},
     elevation: 6,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

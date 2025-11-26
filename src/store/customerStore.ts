@@ -76,66 +76,54 @@ export const useCustomerStore = create<CustomerStore>((set, get) => {
 
         // Test database connection first
         const dbConnectionOk = await dbService.testDatabaseConnection();
-        console.log('Database connection test:', dbConnectionOk);
-
-        // Test basic database operations
         if (dbConnectionOk) {
           await dbService.testInsertSingleCustomer();
         }
 
-        // Load from local database first
-        const localCustomers = await dbService.getAllCustomers();
-        const customerCount = await dbService.getCustomerCount();
-        console.log(`Loaded ${localCustomers.length} customers from local database (count: ${customerCount})`);
-        set({customers: normalizeCustomers(localCustomers)});
+        let customers: ZellerCustomer[] = [];
 
-        // Try to fetch from GraphQL API and update local database
-        try {
-          const response = await GraphQLService.fetchAllCustomers();
-          console.log('GraphQL response:', response);
-          if (response.items && response.items.length > 0) {
-            console.log(`Attempting to insert ${response.items.length} customers from GraphQL`);
-            console.log('Sample customer data:', response.items[0]);
-            
-            // Log all unique role values to debug the constraint issue
-            const uniqueRoles = [...new Set(response.items.map(item => item.role))];
-            console.log('Unique role values from GraphQL:', uniqueRoles);
-            
-            try {
-              await dbService.insertCustomers(response.items);
-              console.log('Successfully inserted customers from GraphQL');
-            } catch (insertError: any) {
-              console.error('Error inserting customers:', insertError);
-              
-              // Check if it's a role constraint error
-              if (insertError.message && insertError.message.includes('CHECK constraint failed: role')) {
-                console.log('Role constraint error detected. Attempting to recreate table...');
-                try {
-                  await dbService.recreateTableWithoutConstraint();
-                  await dbService.insertCustomers(response.items);
-                  console.log('Successfully inserted customers after recreating table');
-                } catch (recreateError) {
-                  console.error('Failed to recreate table and insert customers:', recreateError);
-                  throw recreateError;
+        const customerCount = await dbService.getCustomerCount();
+
+        // If there is no data locally, seed once from GraphQL
+        if (customerCount === 0) {
+          try {
+            const response = await GraphQLService.fetchAllCustomers();
+            if (response.items && response.items.length > 0) {
+              try {
+                await dbService.insertCustomers(response.items);
+              } catch (insertError: any) {
+                console.error('Error inserting customers:', insertError);
+                
+                // Check if it's a role constraint error
+                if (insertError.message && insertError.message.includes('CHECK constraint failed: role')) {
+                  try {
+                    await dbService.recreateTableWithoutConstraint();
+                    await dbService.insertCustomers(response.items);
+                  } catch (recreateError) {
+                    console.error('Failed to recreate table and insert customers:', recreateError);
+                    throw recreateError;
+                  }
+                } else {
+                  throw insertError;
                 }
-              } else {
-                throw insertError;
               }
+              
+              // Verify data was actually saved
+              const verifyCustomers = await dbService.getAllCustomers();
+              customers = verifyCustomers;
             }
-            
-            // Verify data was actually saved
-            const verifyCount = await dbService.getCustomerCount();
-            const verifyCustomers = await dbService.getAllCustomers();
-            console.log(`kkkkkk Verification: DB now has ${verifyCount} customers, getAllCustomers returns ${verifyCustomers.length} items`);
-            
-            set({customers: normalizeCustomers(response.items)});
-          } else {
-            console.log('No customers received from GraphQL');
+          } catch (networkError) {
+            // Continue with (currently empty) local data if network fails
           }
-        } catch (networkError) {
-          console.log('Network error, using local data:', networkError);
-          // Continue with local data if network fails
         }
+
+        // If we didn't populate customers from GraphQL seeding, load from local DB
+        if (customers.length === 0) {
+          const localCustomers = await dbService.getAllCustomers();
+          customers = localCustomers;
+        }
+
+        set({customers: normalizeCustomers(customers)});
 
         // Apply current filters
         get().filterCustomers();
@@ -153,16 +141,10 @@ export const useCustomerStore = create<CustomerStore>((set, get) => {
 
         const dbService = getDbService();
 
-        // Fetch fresh data from GraphQL API
-        const response = await GraphQLService.fetchAllCustomers();
-        console.log('Refresh - GraphQL response:', response);
-        if (response.items) {
-          console.log(`Refresh - Attempting to insert ${response.items.length} customers`);
-          await dbService.insertCustomers(response.items);
-          console.log('Refresh - Successfully inserted customers');
-          set({customers: normalizeCustomers(response.items)});
-          get().filterCustomers();
-        }
+        // For refresh, just reload the latest state from local database
+        const localCustomers = await dbService.getAllCustomers();
+        set({customers: normalizeCustomers(localCustomers)});
+        get().filterCustomers();
       } catch (error) {
         set({error: 'Failed to refresh customers'});
         console.error('Error refreshing customers:', error);
