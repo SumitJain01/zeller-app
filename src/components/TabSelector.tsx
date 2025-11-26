@@ -1,5 +1,11 @@
 import React from 'react';
-import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import {View, Text, TouchableOpacity, StyleSheet, LayoutChangeEvent} from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import {UserRole} from '../types';
 
 interface TabSelectorProps {
@@ -17,9 +23,46 @@ export const TabSelector: React.FC<TabSelectorProps> = ({
   selectedRole,
   onRoleChange,
 }) => {
+  const [containerWidth, setContainerWidth] = React.useState(0);
+  const translateX = useSharedValue(0);
+
+  const tabWidth = containerWidth / tabs.length || 0;
+
+  const handleContainerLayout = (event: LayoutChangeEvent) => {
+    const {width} = event.nativeEvent.layout;
+    setContainerWidth(width);
+  };
+
+  React.useEffect(() => {
+    if (!tabWidth) {
+      return;
+    }
+
+    const activeIndex = tabs.findIndex(tab => tab.role === selectedRole);
+    if (activeIndex === -1) {
+      return;
+    }
+
+    translateX.value = withTiming(activeIndex * tabWidth, {
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [selectedRole, tabWidth, translateX]);
+
+  const animatedThumbStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{translateX: translateX.value}],
+      width: tabWidth - 8, 
+    };
+  });
+
   return (
     <View style={styles.wrapper}>
-      <View style={styles.tabContainer}>
+      <View style={styles.tabContainer} onLayout={handleContainerLayout}>
+        {tabWidth > 0 && (
+          <Animated.View style={[styles.thumb, animatedThumbStyle]} />
+        )}
         {tabs.map(tab => {
           const isActive = selectedRole === tab.role;
 
@@ -28,11 +71,12 @@ export const TabSelector: React.FC<TabSelectorProps> = ({
               key={tab.role}
               style={[styles.tab, isActive ? styles.activeTab : styles.inactiveTab]}
               onPress={() => onRoleChange(tab.role)}
-              activeOpacity={0.8}
-            >
+              activeOpacity={0.8}>
               <Text
-                style={[styles.tabText, isActive ? styles.activeTabText : styles.inactiveTabText]}
-              >
+                style={[
+                  styles.tabText,
+                  isActive ? styles.activeTabText : styles.inactiveTabText,
+                ]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -55,6 +99,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F5FB',
     borderRadius: 999,
     padding: 4,
+    position: 'relative',
+    overflow: 'hidden',
   },
   tab: {
     flex: 1,
@@ -63,11 +109,20 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   inactiveTab: {
     backgroundColor: 'transparent',
   },
   activeTab: {
+    backgroundColor: 'transparent',
+  },
+  thumb: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 4,
+    borderRadius: 999,
     backgroundColor: '#E7EFFC',
     borderWidth: 1,
     borderColor: '#1B6FF9',
