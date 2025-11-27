@@ -69,8 +69,9 @@ describe('CustomerList', () => {
   });
 
   it('should show delete confirmation when a customer row is long pressed', () => {
-    const alertSpy = Alert.alert as jest.Mock;
-    alertSpy.mockClear();
+    // Ensure Alert.alert is a jest mock we can assert on
+    // (jest.setup.js provides a default mock implementation)
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
     const {getByText} = render(
       <CustomerList
         customers={mockCustomers}
@@ -85,7 +86,7 @@ describe('CustomerList', () => {
   });
 
   it('should render section headers', () => {
-    const {getByText} = render(
+    const {getAllByText} = render(
       <CustomerList
         customers={mockCustomers}
         onEditCustomer={mockOnEditCustomer}
@@ -93,6 +94,9 @@ describe('CustomerList', () => {
       />
     );
 
-    expect(getByText('J')).toBeTruthy();
+    // There may be multiple matches for "J" (e.g. header + names),
+    // we just need at least one section header present.
+    const headers = getAllByText('J');
+    expect(headers.length).toBeGreaterThan(0);
   });
 });

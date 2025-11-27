@@ -86,7 +86,10 @@ describe('CustomerStore', () => {
 
   describe('loadCustomers', () => {
     it('should load customers from database and GraphQL', async () => {
-      mockDatabaseService.getAllCustomers.mockResolvedValue([]);
+      // First call (before seeding) returns empty, second call (after seeding) returns the seeded customers
+      mockDatabaseService.getAllCustomers
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(mockCustomers);
       mockGraphQLService.fetchAllCustomers.mockResolvedValue({
         items: mockCustomers,
       });

@@ -16,7 +16,7 @@ jest.mock('react-native-pager-view', () => {
   const React = require('react');
   return React.forwardRef((props, ref) => {
     const MockPagerView = require('react-native').View;
-    return React.createElement(MockPagerView, props);
+    return React.createElement(MockPagerView, {...props, ref});
   });
 });
 
@@ -28,18 +28,42 @@ jest.mock('@apollo/client', () => ({
   createHttpLink: jest.fn(),
 }));
 
-// Mock vector icons
-jest.mock('react-native-vector-icons/Feather', () => 'Feather');
+// Mock vector icons (Feather) with loadFont
+jest.mock('react-native-vector-icons/Feather', () => {
+  const MockIcon = () => null;
+  MockIcon.loadFont = jest.fn(() => Promise.resolve());
+  return MockIcon;
+});
 
-// Mock Alert
-jest.mock('react-native/Libraries/Alert/Alert', () => ({
-  alert: jest.fn(),
-}));
-
+// Ensure Alert is available from 'react-native'
 const ReactNative = require('react-native');
 ReactNative.Alert = {
   alert: jest.fn(),
 };
+
+// Mock react-native-reanimated (v3) for Jest (avoid ESM mock file)
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const {View} = require('react-native');
+
+  const Animated = {
+    View: React.forwardRef((props, ref) => React.createElement(View, {...props, ref})),
+  };
+
+  return {
+    __esModule: true,
+    default: Animated,
+    ...Animated,
+    // Minimal implementations used in the app
+    useSharedValue: jest.fn(initial => ({value: initial})),
+    useAnimatedStyle: jest.fn(fn => fn()),
+    withTiming: (value, _config) => value,
+    Easing: {
+      out: fn => fn,
+      quad: jest.fn(),
+    },
+  };
+});
 
 // Mock console.warn to suppress warnings in tests
 global.console.warn = jest.fn();
