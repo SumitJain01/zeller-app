@@ -4,15 +4,15 @@ A React Native application for managing Zeller customers with offline support, b
 
 ## Features
 
-- 📱 **Cross-platform**: Runs on both iOS and Android
-- 🔄 **Offline Support**: Local SQLite database with GraphQL sync
-- 🎯 **User Management**: Add, edit, delete customers with validation
-- 🔍 **Search & Filter**: Search by name and filter by role (Admin/Manager)
-- 📄 **Tab Navigation**: Swipeable tabs with smooth animations
-- ↻ **Pull-to-Refresh**: Sync data from GraphQL API
-- ✅ **Form Validation**: Comprehensive input validation
-- 🧪 **Well Tested**: Unit and integration tests
-- 🎨 **Modern UI**: Clean, responsive design
+- 📱 **Cross-platform**: Runs on both iOS and Android.
+- 🔄 **Local-first storage**: Uses a local SQLite database, with an optional one-time seed from an AWS AppSync GraphQL API.
+- 🎯 **User Management**: Add, edit, and delete customers with validation.
+- 🔍 **Search & Filter**: Search by name and filter by role (All/Admin/Manager).
+- 📄 **Tab Navigation**: Swipeable tabs with smooth animations between roles.
+- ↻ **Pull-to-Refresh**: Reload the latest data from the local database.
+- ✅ **Form Validation**: Comprehensive input validation for name, email, and role.
+- 🧪 **Well Tested**: Unit and integration tests for store, components, and utilities.
+- 🎨 **Modern UI**: Clean, responsive design matching the Zeller product aesthetic.
 
 ## Architecture
 
@@ -86,24 +86,46 @@ src/
 
 ### Environment & Configuration
 
-- **AppSync config**: Copy `env.example` to `.env` (or update `aws-exports.js` directly) with your `APPSYNC_GRAPHQL_ENDPOINT` and `APPSYNC_API_KEY`, then regenerate `aws-exports.js` if needed.
+- **AppSync config**: Copy `env.example` to `.env` (or update `aws-exports.js` directly) with your `APPSYNC_GRAPHQL_ENDPOINT` and `APPSYNC_API_KEY`, then regenerate `aws-exports.js` if needed. When configured, the app will attempt a **one-time seed** of customers from GraphQL when the local database is empty.
 - **Android keystore**: `android/app/debug.keystore` is already checked in for local debugging.
 - **iOS pods**: Run `cd ios && pod install` whenever dependencies change.
 - **Database**: The local SQLite schema is created automatically on first launch—no manual seeding required.
+- **Remote mutations toggle**: In `src/store/customerStore.ts`, the `ENABLE_REMOTE_MUTATIONS` flag is `false` by default. With this default, all create/update/delete operations are local-only; switch it to `true` if you want writes to also be sent to the GraphQL API.
 
 ## Usage
 
+### App Flow
+
+- **Launch & initialization**: On startup the app shows a loading screen ("Initializing Zeller App...") while the SQLite database is opened/created.
+- **First run seeding**: If the local database is empty and AppSync is configured, the app fetches customers from GraphQL **once** and persists them locally. Subsequent launches read directly from SQLite.
+- **Main screen**: After initialization you land on the **Manage roles and team access** screen, which shows:
+  - A role tab selector (`All`, `Admin`, `Manager`) with an animated thumb.
+  - A floating **+** action button in the bottom-right to create a new user.
+  - An optional search bar that can be toggled via the search icon in the header.
+
 ### Customer Management
-- **View Customers**: Browse customers in All/Admin/Manager tabs
-- **Search**: Use the search bar to find customers by name
-- **Add Customer**: Tap the "+" button to add a new customer
-- **Edit Customer**: Tap "Edit" on any customer card
-- **Delete Customer**: Tap "Delete" and confirm the action
+
+- **View customers**:
+  - Use the `All` / `Admin` / `Manager` tabs to filter by role.
+  - Customers are grouped alphabetically by name and displayed in a sectioned list.
+- **Search**:
+  - Tap the search icon in the header to show/hide the search bar.
+  - Type to filter by customer name; clear the field or close search to reset.
+- **Add customer**:
+  - Tap the floating **+** button to open the **New User** modal.
+  - Fill in first name, last name, email, and select `Admin` or `Manager`, then tap **Create User**.
+- **Edit customer**:
+  - Tap an existing customer row to open the **Edit User** modal.
+  - Update fields and tap **Save Changes**.
+- **Delete customer**:
+  - Long-press a customer in the list and confirm **Delete** in the confirmation dialog, or tap **Delete User** from within the edit modal.
 
 ### Data Sync
-- **Pull-to-Refresh**: Pull down on the customer list to sync with server
-- **Offline Mode**: App works offline using local SQLite database
-- **Auto-Sync**: Automatically syncs with GraphQL API when available
+
+- **Initial data**: On first launch with an empty database, the store attempts to fetch customers from AppSync using `GraphQLService` and inserts them into SQLite. If the network or API is unavailable, the app simply starts with an empty customer list.
+- **Ongoing usage**: By default, all reads and writes go against the local SQLite database via `DatabaseService`. Data you create, edit, or delete remains local to the device.
+- **Pull-to-Refresh**: Pull down on the customer list to **reload the latest state from SQLite**. This does not re-fetch from GraphQL unless you customize the store.
+- **Remote mutations (optional)**: If you enable `ENABLE_REMOTE_MUTATIONS` in `customerStore`, create/update/delete operations will attempt to call the corresponding GraphQL mutations as well, while still persisting everything locally.
 
 ### Form Validation
 - **Name**: Required, alphabets and spaces only, max 50 characters
@@ -143,10 +165,16 @@ query ListZellerCustomers($filter: TableZellerCustomerFilterInput, $limit: Int, 
 ```
 
 ### Data Flow
-1. **Initial Load**: Fetch from local database first, then sync with GraphQL
-2. **Create/Update/Delete**: Operations performed on local database immediately
-3. **Sync**: Pull-to-refresh fetches latest data from GraphQL API
-4. **Offline**: App continues to work with local data when network is unavailable
+1. **Initial Load**:
+   - Open/create the local SQLite database.
+   - If there are no local customers and AppSync is configured, fetch from GraphQL once and seed the database.
+2. **Create/Update/Delete**:
+   - Operations are always performed on the local database immediately.
+   - If `ENABLE_REMOTE_MUTATIONS` is `true`, the app will also attempt the matching GraphQL mutation, falling back to local-only behaviour on failure.
+3. **Refresh**:
+   - Pull-to-refresh reloads customers from SQLite to ensure the UI reflects the latest local state.
+4. **Offline**:
+   - The app continues to work entirely from local data when the network is unavailable; remote GraphQL calls are best-effort only for seeding and (optionally) mutations.
 
 ## Database Schema
 
@@ -190,24 +218,23 @@ interface CustomerStore {
 
 ## Performance Optimizations
 
-- **Local-First**: Data loads from SQLite first for instant UI
-- **Efficient Filtering**: Client-side filtering with debounced search
-- **Optimized Rendering**: FlatList for efficient list rendering
-- **Minimal Re-renders**: Zustand's selective subscriptions
+- **Local-first reads**: Data loads from SQLite first for instant UI and offline-friendly behaviour.
+- **Efficient filtering**: Client-side filtering on role and name, triggered automatically when filters change.
+- **Optimized rendering**: Sectioned list rendering for large customer lists.
+- **Minimal re-renders**: Zustand store with focused state slices to keep renders snappy.
 
 ## Error Handling
 
-- **Network Errors**: Graceful fallback to local data
-- **Validation Errors**: Real-time form validation with user feedback
-- **Database Errors**: Error boundaries and user notifications
-- **Loading States**: Loading indicators for better UX
+- **Network Errors**: Remote GraphQL calls are wrapped in try/catch with console logging; the app falls back to local data when remote calls fail.
+- **Validation Errors**: Real-time form validation with inline error messages for name, email, and role.
+- **Database Errors**: Database initialization failures surface an alert prompting the user to restart the app; other DB issues are logged and reflected via store error state.
+- **Loading States**: A dedicated loading screen and pull-to-refresh indicators provide clear feedback during long-running operations.
 
-## Accessibility
+## Accessibility Considerations
 
-- **Screen Reader Support**: Proper accessibility labels
-- **Keyboard Navigation**: Full keyboard support
-- **Color Contrast**: WCAG compliant color schemes
-- **Touch Targets**: Minimum 44pt touch targets
+- **Accessible labels**: Key interactive elements such as search, add customer, close form, and fetch-from-server buttons expose `accessibilityLabel`s for screen readers.
+- **Clear affordances**: High-contrast text and prominent primary actions help guide the user through key flows.
+- **Touch targets**: Primary buttons and tappable list rows are sized with mobile touch ergonomics in mind.
 
 ## Contributing
 
